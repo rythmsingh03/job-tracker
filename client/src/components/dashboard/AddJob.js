@@ -29,10 +29,13 @@ const AddJob = () => {
     jobTypeOptions,
     statusOptions,
     jobStatus,
+    priority,
+    priorityOptions,
     addJob,
     clearInputValues,
     editJob,
   } = useAppContext();
+
 
   const getInputValueHandler = (e) => {
     getInputValues({ name: e.target.name, value: e.target.value });
@@ -226,6 +229,18 @@ const AddJob = () => {
           />
         </div>
 
+        {/* Priority */}
+        <div className="input-container">
+          <SelectField
+            labelText="Priority"
+            name="priority"
+            onGetValue={getInputValueHandler}
+            value={priority}
+            className="select"
+            options={priorityOptions}
+          />
+        </div>
+
         {/* Interview Scheduled at */}
         {jobStatus === "interview" && (
           <div className="input-container">
@@ -238,7 +253,7 @@ const AddJob = () => {
               type="datetime-local"
               name="interviewScheduledAt"
               onGetValue={getInputValueHandler}
-              value={interviewScheduledAt}
+              value={interviewScheduledAt || ""}
               inputClass="input"
             />
           </div>

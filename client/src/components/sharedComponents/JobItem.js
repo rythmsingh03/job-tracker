@@ -25,10 +25,27 @@ const JobItem = ({
   interviewScheduledAt,
   createdAt,
   isLoading,
+  priority,
 }) => {
   const { setEditJob, deleteJob } = useAppContext();
   let dateOfCreation = moment(createdAt).format("MMM Do, YYYY");
-  let interviewDate = moment(interviewScheduledAt).format("MMM Do, YYYY");
+  let interviewDate = interviewScheduledAt
+    ? moment(interviewScheduledAt).format("MMM Do, YYYY")
+    : "";
+
+  // CSS class based on priority value
+  const getPriorityClass = (level) => {
+    switch ((level || "").toLowerCase()) {
+      case "high":
+        return "priority-badge high";
+      case "medium":
+        return "priority-badge medium";
+      case "low":
+        return "priority-badge low";
+      default:
+        return "priority-badge";
+    }
+  };
 
   return (
     <div className="job-container">
@@ -60,6 +77,12 @@ const JobItem = ({
           />
         )}
         <div className={`status ${jobStatus}`}>{jobStatus}</div>
+
+        {priority && (
+          <div className="priority-wrapper">
+            <span className={getPriorityClass(priority)}>{priority}</span>
+          </div>
+        )}
       </div>
 
       <footer>

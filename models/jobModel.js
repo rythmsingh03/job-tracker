@@ -6,13 +6,13 @@ const jobSchema = new mongoose.Schema(
     position: {
       type: String,
       required: [true, "Please specify the job position"],
-      maxLength: [100, "Position cannot be bigger that 30 symbols"],
+      maxLength: [100, "Position cannot be bigger than 100 characters"],
       trim: true,
     },
     company: {
       type: String,
       required: [true, "Please specify the company"],
-      maxLength: [50, "Position cannot be bigger that 30 symbols"],
+      maxLength: [50, "Company name cannot be bigger than 50 characters"],
       trim: true,
     },
     jobLocation: {
@@ -32,12 +32,16 @@ const jobSchema = new mongoose.Schema(
     },
     recruiter: {
       type: String,
-      maxLength: [30, "The recruiter's name cannot be bigger that 30 symbols"],
+      maxLength: [30, "Recruiter's name cannot exceed 30 characters"],
       trim: true,
     },
     recruiterEmail: {
       type: String,
       trim: true,
+      validate: {
+        validator: validator.isEmail,
+        message: "Please provide a valid email",
+      },
     },
     salaryMin: {
       type: Number,
@@ -58,8 +62,17 @@ const jobSchema = new mongoose.Schema(
       ref: "UserModel",
       required: [true, "Please provide the user associated with this job"],
     },
+    priority: {
+      type: String,
+      enum: ["High", "Medium", "Low"],
+      default: "Medium",
+    },
+    priorityLevel: {
+      type: Number,
+      default: 2, // Medium
+    },
   },
-  { timestamps: true } // provides "createdAt" and "updatedAt" fields automatically
+  { timestamps: true }
 );
 
 const JobModel = mongoose.model("JobModel", jobSchema);

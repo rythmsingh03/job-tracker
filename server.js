@@ -1,6 +1,8 @@
 import path, { dirname } from "path";
 import dotenv from "dotenv";
 dotenv.config();
+console.log("MONGO_URI:", process.env.MONGO_URI);
+
 
 import express from "express";
 const app = express();
@@ -60,7 +62,7 @@ app.use(notFound);
 const start = async () => {
   try {
     await mongoose
-      .connect(process.env.MONGODB_URL)
+      .connect(process.env.MONGO_URI)
       .then(() => console.log("MONGODB connected!"))
       .catch((err) => console.log(err));
 

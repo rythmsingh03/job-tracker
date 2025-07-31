@@ -5,21 +5,31 @@ import JobModel from "../models/jobModel.js";
 import { BadRequestError } from "../errors/index.js";
 import checkPermissions from "../utils/checkPermissions.js";
 
-const getJobs = async (req, res, next) => {
+// Helper: Convert priority string to numeric level for sorting
+const getPriorityLevel = (priority) => {
+  switch (priority) {
+    case "High":
+      return 1;
+    case "Medium":
+      return 2;
+    case "Low":
+      return 3;
+    default:
+      return 2; // fallback
+  }
+};
+
+const getJobs = async (req, res) => {
   const { search, jobType, jobStatus, sort } = req.query;
   const queryObject = { createdBy: req.user.userId };
 
-  // Search
+  // Filtering
   if (search) {
     queryObject.position = { $regex: search, $options: "i" };
   }
-
-  // Filtering by the jobType
   if (jobType && jobType !== "all") {
     queryObject.jobType = jobType;
   }
-
-  // Filtering by the jobStatus
   if (jobStatus && jobStatus !== "all") {
     queryObject.jobStatus = jobStatus;
   }
@@ -27,20 +37,27 @@ const getJobs = async (req, res, next) => {
   let result = JobModel.find(queryObject);
 
   // Sorting
-  if (sort === "latest") {
-    result = result.sort("-createdAt");
-  }
-
-  if (sort === "oldest") {
-    result = result.sort("createdAt");
-  }
-
-  if (sort === "a-z") {
-    result = result.sort("position");
-  }
-
-  if (sort === "z-a") {
-    result = result.sort("-position");
+  switch (sort) {
+    case "latest":
+      result = result.sort("-createdAt");
+      break;
+    case "oldest":
+      result = result.sort("createdAt");
+      break;
+    case "a-z":
+      result = result.sort("position");
+      break;
+    case "z-a":
+      result = result.sort("-position");
+      break;
+    case "priority-high":
+      result = result.sort("priorityLevel");
+      break;
+    case "priority-low":
+      result = result.sort("-priorityLevel");
+      break;
+    default:
+      result = result.sort("-createdAt");
   }
 
   // Pagination
@@ -50,7 +67,6 @@ const getJobs = async (req, res, next) => {
   result = result.skip(skip).limit(limit);
 
   const jobs = await result;
-
   const totalJobs = await JobModel.countDocuments(queryObject);
   const numOfPages = Math.ceil(totalJobs / limit);
 
@@ -62,8 +78,10 @@ const getJobs = async (req, res, next) => {
   });
 };
 
-const addJob = async (req, res, next) => {
-  const { position, company, jobStatus, interviewScheduledAt } = req.body;
+const addJob = async (req, res) => {
+  const { position, company, jobStatus, priority, interviewScheduledAt } =
+    req.body;
+
   if (!position || !company) {
     throw new BadRequestError("Please provide position and company!");
   }
@@ -72,8 +90,8 @@ const addJob = async (req, res, next) => {
     throw new BadRequestError("Please provide the interview date and time!");
   }
 
-  // Adding the user to the req.body
   req.body.createdBy = req.user.userId;
+  req.body.priorityLevel = getPriorityLevel(priority);
 
   const job = await JobModel.create(req.body);
 
@@ -83,8 +101,9 @@ const addJob = async (req, res, next) => {
   });
 };
 
-const editJob = async (req, res, next) => {
-  const { company, position, jobStatus, interviewScheduledAt } = req.body;
+const editJob = async (req, res) => {
+  const { company, position, jobStatus, priority, interviewScheduledAt } =
+    req.body;
 
   if (!company || !position) {
     throw new BadRequestError("Please provide position and company!");
@@ -96,34 +115,31 @@ const editJob = async (req, res, next) => {
 
   const job = await JobModel.findOne({ _id: req.params.id });
   if (!job) {
-    throw new BadRequestError(`There's no job with the id: ${req.params.id}`);
+    throw new BadRequestError(`No job found with id: ${req.params.id}`);
   }
 
-  // Checking the current user permissions for editing the job:
   checkPermissions(req.user, job.createdBy);
+  req.body.priorityLevel = getPriorityLevel(priority);
 
   const updatedJob = await JobModel.findOneAndUpdate(
     { _id: req.params.id },
     req.body,
-    {
-      new: true,
-      runValidators: true,
-    }
+    { new: true, runValidators: true }
   );
+
   res.status(StatusCodes.OK).json({
     status: "success",
     updatedJob,
   });
 };
 
-const deleteJob = async (req, res, next) => {
+const deleteJob = async (req, res) => {
   const job = await JobModel.findOne({ _id: req.params.id });
   if (!job) {
-    throw new BadRequestError(`There's no job with the id: ${req.params.id}`);
+    throw new BadRequestError(`No job found with id: ${req.params.id}`);
   }
 
   checkPermissions(req.user, job.createdBy);
-
   await JobModel.findOneAndDelete({ _id: req.params.id });
 
   res.status(StatusCodes.OK).json({
@@ -132,15 +148,14 @@ const deleteJob = async (req, res, next) => {
   });
 };
 
-const getStats = async (req, res, next) => {
+const getStats = async (req, res) => {
   let stats = await JobModel.aggregate([
     { $match: { createdBy: new mongoose.Types.ObjectId(req.user.userId) } },
-    { $group: { _id: "$jobStatus", count: { $sum: 1 } } }, // it will add up the value of expression for each row
+    { $group: { _id: "$jobStatus", count: { $sum: 1 } } },
   ]);
 
-  // Changing the stats format from array to object
-  stats = stats.reduce((acc, current) => {
-    const { _id, count } = current;
+  stats = stats.reduce((acc, curr) => {
+    const { _id, count } = curr;
     acc[_id] = count;
     return acc;
   }, {});
@@ -151,21 +166,21 @@ const getStats = async (req, res, next) => {
     declined: stats.declined || 0,
   };
 
-  // Charts
   let monthlyApplications = await JobModel.aggregate([
     { $match: { createdBy: new mongoose.Types.ObjectId(req.user.userId) } },
     {
       $group: {
-        _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" },
+        },
         count: { $sum: 1 },
       },
     },
-    // Latest jobs come first
     { $sort: { "_id.year": -1, "_id.month": -1 } },
     { $limit: 8 },
   ]);
 
-  // Re-format the monthlyApplications to get more suitable output for the frontend
   monthlyApplications = monthlyApplications
     .map((item) => {
       const {
@@ -176,7 +191,6 @@ const getStats = async (req, res, next) => {
         .month(month - 1)
         .year(year)
         .format("MMM Y");
-
       return { date, count };
     })
     .reverse();
